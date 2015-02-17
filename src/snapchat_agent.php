@@ -239,9 +239,10 @@ abstract class SnapchatAgent {
 			}
 			zip_close($resource);
 		}
-		
+
 		return $result;
 	}
+
 
 	/**
 	 * Performs a GET request. Currently only used for story blobs.

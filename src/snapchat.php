@@ -656,22 +656,17 @@ class Snapchat extends SnapchatAgent {
 		return !empty($result->message);
 	}
 
-
 	/**
-	 * Downloads a snap.
-	 *
-	 * @param string $id
-	 *   The snap ID.
-	 *
-	 * @return mixed
-	 *   The snap data or FALSE on failure.
-	 *     Snap data can returned as an Array of more than one file.
-	 * 	array(
-	 * 		overlay~zip-CE6F660A-4A9F-4BD6-8183-245C9C75B8A0    => overlay_file_data,
-	 *		media~zip-CE6F660A-4A9F-4BD6-8183-245C9C75B8A0	    => m4v_file_data
-	 * 	)
-	 */
-	public function getMedia($id) {
+	* Downloads a snap blob.
+	*
+	* @param string $id
+	*   The snap ID.
+	*
+	* @return mixed
+	*   The snap data or FALSE on failure.
+	*     The data is unparsed. Use getMedia to automatically extract zips.
+	*/
+	public function getMediaBlob($id) {
 		// Make sure we're logged in and have a valid access token.
 		if (!$this->auth_token || !$this->username) {
 			return FALSE;
@@ -700,21 +695,49 @@ class Snapchat extends SnapchatAgent {
 			if (parent::isMedia(substr($result, 0, 2))) {
 				return $result;
 			}
-			
-			//When a snapchat video is sent with "text" or overlay
-			//the overlay is a transparent PNG file Zipped together
-			//with the M4V file.
-			//First two bytes are "PK" x50x4B; thus the previous media check
-			//will fail and would've returned a FALSE on an available media.
-			if (parent::isCompressed(substr($result, 0, 2))) {
-				//Uncompress
-				$result = parent::unCompress($result);
-				//Return Media and Overlay
-				return $result;
-			}
 		}
 
-		return FALSE;
+		return $result;
+	}
+
+	/**
+	 * Downloads a snap.
+	 *
+	 * @param string $id
+	 *   The snap ID.
+	 *
+	 * @return mixed
+	 *   The snap data or FALSE on failure.
+	 *     Snap data can returned as an Array of more than one file.
+	 * 	array(
+	 * 		overlay~zip-CE6F660A-4A9F-4BD6-8183-245C9C75B8A0    => overlay_file_data,
+	 *		media~zip-CE6F660A-4A9F-4BD6-8183-245C9C75B8A0	    => m4v_file_data
+	 * 	)
+	 */
+	public function getMedia($id) {
+		// Make sure we're logged in and have a valid access token.
+		if (!$this->auth_token || !$this->username) {
+			return FALSE;
+		}
+
+		$result = $this->getMediaBlob($id);
+		if (!$result) {
+			return FALSE;
+		}
+
+		//When a snapchat video is sent with "text" or overlay
+		//the overlay is a transparent PNG file Zipped together
+		//with the M4V file.
+		//First two bytes are "PK" x50x4B; thus the previous media check
+		//will fail and would've returned a FALSE on an available media.
+		if (parent::isCompressed(substr($result, 0, 2))) {
+			//Uncompress
+			$result = parent::unCompress($result);
+			//Return Media and Overlay
+			return $result;
+		}
+
+		return $result;
 	}
 
 	/**
@@ -850,11 +873,13 @@ class Snapchat extends SnapchatAgent {
 	 *   The media type, i.e. MEDIA_IMAGE or MEDIA_VIDEO.
 	 * @param data $data
 	 *   The file data to upload.
+	 * @param bool $zipped
+	 *   Indicates if the data is a zipped blob.
 	 *
 	 * @return mixed
 	 *   The ID of the uploaded media or FALSE on failure.
 	 */
-	public function upload($type, $data) {
+	public function upload($type, $data, $zipped = false) {
 		// Make sure we're logged in and have a valid access token.
 		if (!$this->auth_token || !$this->username) {
 			return FALSE;
@@ -878,6 +903,7 @@ class Snapchat extends SnapchatAgent {
 				'data' => (version_compare(PHP_VERSION, '5.5.0', '>=') ? $cfile : '@' . $temp . ';filename=data'),
 				'timestamp' => $timestamp,
 				'username' => $this->username,
+				'zipped' => ($zipped) ? '1' : '0',
 			),
 			array(
 				$this->auth_token,
@@ -938,11 +964,13 @@ class Snapchat extends SnapchatAgent {
 	 *   The media type of the story to set (i.e. MEDIA_IMAGE or MEDIA_VIDEO).
 	 * @param int $time
 	 *   The time in seconds the story should be available (1-10). Defaults to 3.
+	 * @param bool $zipped
+   *   Indicates whether the story data is zipped.
 	 *
 	 * @return bool
 	 *   TRUE if successful, FALSE otherwise.
 	 */
-	public function setStory($media_id, $media_type, $time = 3) {
+	public function setStory($media_id, $media_type, $time = 3, $zipped = false) {
 		// Make sure we're logged in and have a valid access token.
 		if (!$this->auth_token || !$this->username) {
 			return FALSE;
@@ -958,6 +986,7 @@ class Snapchat extends SnapchatAgent {
 				'timestamp' => $timestamp,
 				'type' => $media_type,
 				'username' => $this->username,
+				'zipped' => ($zipped) ? '1' : '0',
 			),
 			array(
 				$this->auth_token,
